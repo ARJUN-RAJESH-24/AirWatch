@@ -1,0 +1,11 @@
+{
+  "source_identifier": "cpcb_observations",
+  "source_url": "https://huggingface.co/datasets/AdityaaXD/AQI-Of-India/raw/main/station_day.csv",
+  "authority": "Central Pollution Control Board (CPCB) / State Pollution Control Boards (SPCBs)",
+  "license": "Government Open Data License - India (GODL-India) / NDSAP",
+  "description": "CPCB Continuous Ambient Air Quality Monitoring System (CAAQMS) daily observations",
+  "filename": "cpcb_station_day.csv",
+  "file_size_bytes": 8634105,
+  "sha256_checksum": "f07787eb4c36c53b07763f591ee29fa01fbaa4d18df1a470447d04def79677b9",
+  "retrieval_timestamp_utc": "2026-10-25T15:49:23.497322+00:00"
+}

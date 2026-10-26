@@ -1,0 +1,13 @@
+# Example Terraform Variable Configuration for AirWatch AWS Cloud Deployment
+# Copy to terraform.tfvars and populate with non-committed values.
+
+aws_region         = "ap-south-1" # AWS Asia Pacific (Mumbai)
+environment        = "staging"
+project_name       = "airwatch"
+ec2_instance_type  = "t3.micro"
+db_instance_class  = "db.t4g.micro"
+db_name            = "airwatch"
+db_username        = "airwatch_admin"
+db_password        = "REPLACE_WITH_STRONG_GENERATED_PASSWORD_MIN_16_CHARS"
+monthly_budget_usd = 15.00
+alert_email        = "alerts@example.com"

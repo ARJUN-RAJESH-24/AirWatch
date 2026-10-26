@@ -1,0 +1,16 @@
+{
+  "cpcb_stations": {
+    "path": "A:\\AirWatch\\data\\raw\\cpcb_stations.csv",
+    "checksum": "ce2b7081c3e3c89145613eb724d7d2149ef79c6e16f36bb8a835747a673ed410",
+    "size_bytes": 14467,
+    "retrieved_at": "2026-10-25T15:49:23.497322+00:00",
+    "status": "DOWNLOADED"
+  },
+  "cpcb_observations": {
+    "path": "A:\\AirWatch\\data\\raw\\cpcb_station_day.csv",
+    "checksum": "f07787eb4c36c53b07763f591ee29fa01fbaa4d18df1a470447d04def79677b9",
+    "size_bytes": 8634105,
+    "retrieved_at": "2026-10-25T15:49:23.497322+00:00",
+    "status": "DOWNLOADED"
+  }
+}
