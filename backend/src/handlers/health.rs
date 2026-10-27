@@ -81,8 +81,8 @@ pub async fn get_data_status(State(pool): State<DbPool>) -> Result<impl IntoResp
         .await?;
 
     // Date range of observations
-    let date_range: (Option<String>, Option<String>) = sqlx::query_as(
-        "SELECT min(observation_timestamp), max(observation_timestamp) FROM air_quality_observations"
+    let date_range: (String, String) = sqlx::query_as(
+        "SELECT COALESCE(min(observation_timestamp), ''), COALESCE(max(observation_timestamp), '') FROM air_quality_observations"
     )
     .fetch_one(&pool)
     .await?;
@@ -109,8 +109,8 @@ pub async fn get_data_status(State(pool): State<DbPool>) -> Result<impl IntoResp
         "total_observations": total_observations,
         "total_aqi_records": total_aqi_records,
         "pollutants": pollutants,
-        "dataset_start_date": date_range.0,
-        "dataset_end_date": date_range.1,
+        "dataset_start_date": if date_range.0.is_empty() { None } else { Some(date_range.0) },
+        "dataset_end_date": if date_range.1.is_empty() { None } else { Some(date_range.1) },
         "last_ingestion_run": last_run.map(|(id, src, st, ret, ins)| json!({
             "run_id": id,
             "source": src,

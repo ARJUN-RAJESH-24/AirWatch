@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { MetricCard } from '../components/MetricCard';
 import { AqiBadge } from '../components/AqiBadge';
@@ -8,6 +8,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { Navbar } from '../components/Navbar';
 import { Activity } from 'lucide-react';
+import { api } from '../services/api';
 
 describe('Frontend UI Components & States', () => {
   it('renders MetricCard with title, value, unit, and subtitle', () => {
@@ -81,12 +82,26 @@ describe('Frontend UI Components & States', () => {
     expect(retried).toBe(true);
   });
 
-  it('renders Navbar with all 7 primary navigation routes', () => {
-    render(
-      <BrowserRouter>
-        <Navbar />
-      </BrowserRouter>
-    );
+  it('renders Navbar with all 7 primary navigation routes', async () => {
+    vi.spyOn(api, 'getDataStatus').mockResolvedValue({
+      status: 'operational',
+      total_stations: 230,
+      active_stations: 80,
+      total_observations: 437226,
+      total_aqi_records: 66771,
+      pollutants: ['PM2.5', 'PM10'],
+      dataset_start_date: '2015-01-01',
+      dataset_end_date: '2020-07-01',
+      last_ingestion_run: null,
+    });
+
+    await act(async () => {
+      render(
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Navbar />
+        </BrowserRouter>
+      );
+    });
 
     expect(screen.getByText('AirWatch')).toBeDefined();
     expect(screen.getByText('Overview')).toBeDefined();

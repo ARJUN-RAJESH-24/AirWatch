@@ -171,14 +171,14 @@ pub async fn get_pollutant_summary(State(pool): State<DbPool>) -> Result<impl In
             coalesce(round(min(o.value), 2), 0.0) as min_val,
             coalesce(round(max(o.value), 2), 0.0) as max_val,
             count(DISTINCT o.station_id) as active_stations,
-            p.cpcb_standard_24h
+            coalesce(p.cpcb_standard_24h, -1.0) as cpcb_standard_24h
         FROM pollutants p
         LEFT JOIN air_quality_observations o ON o.pollutant_id = p.id
         GROUP BY p.id, p.canonical_name, p.display_name, p.default_unit, p.cpcb_standard_24h
         ORDER BY total_observations DESC
     "#;
 
-    let rows: Vec<(String, String, String, String, i64, f64, f64, f64, i64, Option<f64>)> =
+    let rows: Vec<(String, String, String, String, i64, f64, f64, f64, i64, f64)> =
         sqlx::query_as(sql).fetch_all(&pool).await?;
 
     let summaries: Vec<PollutantSummary> = rows
@@ -193,7 +193,7 @@ pub async fn get_pollutant_summary(State(pool): State<DbPool>) -> Result<impl In
             min: r.6,
             max: r.7,
             active_stations: r.8,
-            cpcb_standard_24h: r.9,
+            cpcb_standard_24h: if r.9 < 0.0 { None } else { Some(r.9) },
         })
         .collect();
 
@@ -214,8 +214,8 @@ pub async fn get_exceedances(
             st.pollutant_id, st.id as standard_id, st.standard_name, st.averaging_period,
             st.threshold_value, st.unit,
             count(o.id) as total_observations,
-            sum(CASE WHEN o.value > st.threshold_value THEN 1 ELSE 0 END) as exceedance_count,
-            round(max(o.value), 2) as highest_val
+            coalesce(sum(CASE WHEN o.value > st.threshold_value THEN 1 ELSE 0 END), 0) as exceedance_count,
+            coalesce(round(max(o.value), 2), 0.0) as highest_val
         FROM environmental_standards st
         JOIN air_quality_observations o ON o.pollutant_id = st.pollutant_id
         JOIN stations s ON s.id = o.station_id
@@ -242,14 +242,14 @@ pub async fn get_exceedances(
     sql.push_str(" GROUP BY st.pollutant_id, st.id, st.standard_name, st.averaging_period, st.threshold_value, st.unit");
     sql.push_str(" ORDER BY st.pollutant_id");
 
-    let rows: Vec<(String, String, String, String, f64, String, i64, Option<i64>, Option<f64>)> =
+    let rows: Vec<(String, String, String, String, f64, String, i64, i64, f64)> =
         sqlx::query_as(&sql).fetch_all(&pool).await?;
 
     let reports: Vec<ExceedanceReport> = rows
         .into_iter()
         .map(|r| {
             let total = r.6;
-            let exceed = r.7.unwrap_or(0);
+            let exceed = r.7;
             let pct = if total > 0 {
                 (exceed as f64 / total as f64 * 100.0 * 100.0).round() / 100.0
             } else {
@@ -265,7 +265,7 @@ pub async fn get_exceedances(
                 total_observations: total,
                 exceedance_count: exceed,
                 exceedance_percentage: pct,
-                highest_recorded_value: r.8.unwrap_or(0.0),
+                highest_recorded_value: r.8,
                 compliance_note: "Descriptive exceedance analysis against CPCB NAAQS 2009 24-hr threshold. Not a formal legal violation determination.".to_string(),
             }
         })
@@ -292,8 +292,8 @@ pub async fn get_data_completeness(
         r#"
         SELECT 
             s.station_code, s.name, o.pollutant_id,
-            min(o.observation_timestamp) as first_obs,
-            max(o.observation_timestamp) as last_obs,
+            COALESCE(min(o.observation_timestamp), '') as first_obs,
+            COALESCE(max(o.observation_timestamp), '') as last_obs,
             count(DISTINCT substr(o.observation_timestamp, 1, 10)) as actual_days
         FROM air_quality_observations o
         JOIN stations s ON s.id = o.station_id
@@ -304,11 +304,11 @@ pub async fn get_data_completeness(
         pollutant.replace("'", "''")
     );
 
-    let row: Option<(String, String, String, Option<String>, Option<String>, i64)> =
+    let row: Option<(String, String, String, String, String, i64)> =
         sqlx::query_as(&sql).fetch_optional(&pool).await?;
 
     match row {
-        Some((code, name, pol, Some(first), Some(last), actual)) => {
+        Some((code, name, pol, first, last, actual)) if !first.is_empty() && !last.is_empty() => {
             // Calculate days between first and last observation
             let days_between = match (
                 chrono::NaiveDate::parse_from_str(&first[..10], "%Y-%m-%d"),
@@ -346,17 +346,17 @@ pub async fn get_regional_summary(State(pool): State<DbPool>) -> Result<impl Int
             s.state,
             count(DISTINCT s.id) as station_count,
             count(o.id) as total_observations,
-            round(avg(CASE WHEN o.pollutant_id = 'PM2.5' THEN o.value END), 2) as avg_pm25,
-            round(avg(CASE WHEN o.pollutant_id = 'PM10' THEN o.value END), 2) as avg_pm10,
-            round(avg(CASE WHEN o.pollutant_id = 'NO2' THEN o.value END), 2) as avg_no2,
-            max(o.observation_timestamp) as last_obs
+            COALESCE(round(avg(CASE WHEN o.pollutant_id = 'PM2.5' THEN o.value END), 2), -1.0) as avg_pm25,
+            COALESCE(round(avg(CASE WHEN o.pollutant_id = 'PM10' THEN o.value END), 2), -1.0) as avg_pm10,
+            COALESCE(round(avg(CASE WHEN o.pollutant_id = 'NO2' THEN o.value END), 2), -1.0) as avg_no2,
+            COALESCE(max(o.observation_timestamp), '') as last_obs
         FROM stations s
         LEFT JOIN air_quality_observations o ON o.station_id = s.id
         GROUP BY s.state
         ORDER BY total_observations DESC
     "#;
 
-    let rows: Vec<(String, i64, i64, Option<f64>, Option<f64>, Option<f64>, Option<String>)> =
+    let rows: Vec<(String, i64, i64, f64, f64, f64, String)> =
         sqlx::query_as(sql).fetch_all(&pool).await?;
 
     let summaries: Vec<RegionalSummary> = rows
@@ -365,11 +365,11 @@ pub async fn get_regional_summary(State(pool): State<DbPool>) -> Result<impl Int
             state: r.0,
             station_count: r.1,
             total_observations: r.2,
-            avg_pm25: r.3,
-            avg_pm10: r.4,
-            avg_no2: r.5,
+            avg_pm25: if r.3 < 0.0 { None } else { Some(r.3) },
+            avg_pm10: if r.4 < 0.0 { None } else { Some(r.4) },
+            avg_no2: if r.5 < 0.0 { None } else { Some(r.5) },
             avg_aqi: None,
-            last_observation_date: r.6,
+            last_observation_date: if r.6.is_empty() { None } else { Some(r.6) },
         })
         .collect();
 

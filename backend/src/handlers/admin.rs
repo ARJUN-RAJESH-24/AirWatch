@@ -17,17 +17,17 @@ pub async fn list_ingestion_runs(
 ) -> Result<impl IntoResponse, AppError> {
     let sql = r#"
         SELECT 
-            id, source_identifier, status, start_time, end_time,
+            id, source_identifier, status, start_time, COALESCE(end_time, ''),
             records_retrieved, records_inserted, records_updated, records_rejected,
-            error_details, run_metadata
+            COALESCE(error_details, ''), COALESCE(run_metadata, '')
         FROM ingestion_runs
         ORDER BY start_time DESC
         LIMIT 50
     "#;
 
     let rows: Vec<(
-        String, String, String, String, Option<String>,
-        i64, i64, i64, i64, Option<String>, Option<String>
+        String, String, String, String, String,
+        i64, i64, i64, i64, String, String
     )> = sqlx::query_as(sql).fetch_all(&pool).await?;
 
     let runs: Vec<IngestionRun> = rows
@@ -37,13 +37,13 @@ pub async fn list_ingestion_runs(
             source_identifier: r.1,
             status: r.2,
             start_time: r.3,
-            end_time: r.4,
+            end_time: if r.4.is_empty() { None } else { Some(r.4) },
             records_retrieved: r.5,
             records_inserted: r.6,
             records_updated: r.7,
             records_rejected: r.8,
-            error_details: r.9,
-            run_metadata: r.10,
+            error_details: if r.9.is_empty() { None } else { Some(r.9) },
+            run_metadata: if r.10.is_empty() { None } else { Some(r.10) },
         })
         .collect();
 
@@ -60,9 +60,9 @@ pub async fn get_ingestion_run(
     let sql = format!(
         r#"
         SELECT 
-            id, source_identifier, status, start_time, end_time,
+            id, source_identifier, status, start_time, COALESCE(end_time, ''),
             records_retrieved, records_inserted, records_updated, records_rejected,
-            error_details, run_metadata
+            COALESCE(error_details, ''), COALESCE(run_metadata, '')
         FROM ingestion_runs
         WHERE id = '{}'
         "#,
@@ -70,8 +70,8 @@ pub async fn get_ingestion_run(
     );
 
     let row: Option<(
-        String, String, String, String, Option<String>,
-        i64, i64, i64, i64, Option<String>, Option<String>
+        String, String, String, String, String,
+        i64, i64, i64, i64, String, String
     )> = sqlx::query_as(&sql).fetch_optional(&pool).await?;
 
     match row {
@@ -81,13 +81,13 @@ pub async fn get_ingestion_run(
                 source_identifier: r.1,
                 status: r.2,
                 start_time: r.3,
-                end_time: r.4,
+                end_time: if r.4.is_empty() { None } else { Some(r.4) },
                 records_retrieved: r.5,
                 records_inserted: r.6,
                 records_updated: r.7,
                 records_rejected: r.8,
-                error_details: r.9,
-                run_metadata: r.10,
+                error_details: if r.9.is_empty() { None } else { Some(r.9) },
+                run_metadata: if r.10.is_empty() { None } else { Some(r.10) },
             }
         }))),
         None => Err(AppError::NotFound(format!("Ingestion run '{}' not found", id))),

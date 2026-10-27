@@ -12,7 +12,7 @@ import { IngestionMonitor } from './pages/IngestionMonitor';
 
 export const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
         <Navbar />
         <main className="flex-1">
