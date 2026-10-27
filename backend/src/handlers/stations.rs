@@ -20,8 +20,12 @@ pub async fn get_stations(
     let mut sql = String::from(
         r#"
         SELECT 
-            s.id, s.station_code, s.name, s.city, s.state, s.latitude, s.longitude,
-            s.agency, s.status, s.source_dataset,
+            s.id, s.station_code, s.name, s.city, s.state,
+            COALESCE(s.latitude, -999.0) as latitude,
+            COALESCE(s.longitude, -999.0) as longitude,
+            COALESCE(s.agency, '') as agency,
+            COALESCE(s.status, '') as status,
+            s.source_dataset,
             COALESCE((SELECT aqi_value FROM aqi_observations a WHERE a.station_id = s.id ORDER BY a.observation_timestamp DESC LIMIT 1), -1) as latest_aqi,
             COALESCE((SELECT aqi_category FROM aqi_observations a WHERE a.station_id = s.id ORDER BY a.observation_timestamp DESC LIMIT 1), '') as latest_aqi_category,
             COALESCE((SELECT observation_timestamp FROM air_quality_observations o WHERE o.station_id = s.id ORDER BY o.observation_timestamp DESC LIMIT 1), '') as latest_observation_date
@@ -49,8 +53,8 @@ pub async fn get_stations(
     sql.push_str(&format!(" ORDER BY s.state, s.city, s.name LIMIT {} OFFSET {}", limit, offset));
 
     let rows: Vec<(
-        i64, String, String, String, String, Option<f64>, Option<f64>,
-        Option<String>, Option<String>, String, i64, String, String
+        i64, String, String, String, String, f64, f64,
+        String, String, String, i64, String, String
     )> = sqlx::query_as(&sql).fetch_all(&pool).await?;
 
     let stations: Vec<StationWithAqi> = rows.into_iter().map(|r| StationWithAqi {
@@ -59,10 +63,10 @@ pub async fn get_stations(
         name: r.2,
         city: r.3,
         state: r.4,
-        latitude: r.5,
-        longitude: r.6,
-        agency: r.7,
-        status: r.8,
+        latitude: if r.5 < -900.0 { None } else { Some(r.5) },
+        longitude: if r.6 < -900.0 { None } else { Some(r.6) },
+        agency: if r.7.is_empty() { None } else { Some(r.7) },
+        status: if r.8.is_empty() { None } else { Some(r.8) },
         source_dataset: r.9,
         latest_aqi: if r.10 >= 0 { Some(r.10) } else { None },
         latest_aqi_category: if r.11.is_empty() { None } else { Some(r.11) },
@@ -83,14 +87,14 @@ pub async fn get_station_by_id(
 ) -> Result<impl IntoResponse, AppError> {
     // Check if path is integer ID or station_code
     let query_str = if let Ok(num_id) = id.parse::<i64>() {
-        format!("SELECT id, station_code, name, city, state, latitude, longitude, agency, status, source_dataset, created_at, updated_at FROM stations WHERE id = {}", num_id)
+        format!("SELECT id, station_code, name, city, state, COALESCE(latitude, -999.0), COALESCE(longitude, -999.0), COALESCE(agency, ''), COALESCE(status, ''), source_dataset, created_at, updated_at FROM stations WHERE id = {}", num_id)
     } else {
-        format!("SELECT id, station_code, name, city, state, latitude, longitude, agency, status, source_dataset, created_at, updated_at FROM stations WHERE station_code = '{}'", id.replace("'", "''"))
+        format!("SELECT id, station_code, name, city, state, COALESCE(latitude, -999.0), COALESCE(longitude, -999.0), COALESCE(agency, ''), COALESCE(status, ''), source_dataset, created_at, updated_at FROM stations WHERE station_code = '{}'", id.replace("'", "''"))
     };
 
     let row: Option<(
-        i64, String, String, String, String, Option<f64>, Option<f64>,
-        Option<String>, Option<String>, String, String, String
+        i64, String, String, String, String, f64, f64,
+        String, String, String, String, String
     )> = sqlx::query_as(&query_str).fetch_optional(&pool).await?;
 
     match row {
@@ -117,10 +121,10 @@ pub async fn get_station_by_id(
                     "name": r.2,
                     "city": r.3,
                     "state": r.4,
-                    "latitude": r.5,
-                    "longitude": r.6,
-                    "agency": r.7,
-                    "status": r.8,
+                    "latitude": if r.5 < -900.0 { serde_json::Value::Null } else { json!(r.5) },
+                    "longitude": if r.6 < -900.0 { serde_json::Value::Null } else { json!(r.6) },
+                    "agency": if r.7.is_empty() { serde_json::Value::Null } else { json!(r.7) },
+                    "status": if r.8.is_empty() { serde_json::Value::Null } else { json!(r.8) },
                     "source_dataset": r.9,
                     "created_at": r.10,
                     "updated_at": r.11,
